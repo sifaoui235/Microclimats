@@ -1,0 +1,50 @@
+# SpDX-FileCopyrightText: 2021 Ladyada for Adafruit Industries
+# SpDX-License-Identifier: MIT
+
+import time
+import board
+import adafruit_dht
+import drivers
+
+# Initial the dht device, with data pin connected to:
+dhtDevice = adafruit_dht.DHT22(board.D17)
+display = drivers.Lcd()
+
+# you can pass DHT22 use_pulseio=False if you wouldn't like to use pulseio.
+# This may be necessary on a Linux single board computer like the Raspberry Pi,
+# but it will not work in CircuitPython.
+# dhtDevice = adafruit_dht.DHT22(board.D4e_pulseio=False)
+
+try:
+    while True:
+    try:
+    # Print the values to the serial port
+    temperature_c = dhtDevice.temperature
+    temperature_f = temperature_c * (9 / 5) + 32
+    humidity = dhtDevice.humidity
+
+    print(
+    "Temp: {:.lf} F / {:.lf} C Humidity: {}% ".format(
+    temperature_f, temperature_c, humidity
+    )
+    )
+
+    # Display the values on the LCD
+    display.lcd_display_string("Temp: {:.lf}C".format(temperature_c), 1) # First line
+    display.lcd_display_string("Humidity: {}%".format(humidity), 2) # Second line
+
+    time.sleep(2) # Give time for the message to be read
+
+    except RuntimeError as error:
+    # Errors happen fairly often, DHT's are hard to read, just keep going
+    print(error.args[0])
+    time.sleep(2.0)
+    continue
+
+    except Exception as error:
+    dhtDevice.exit()
+    raise error
+
+except KeyboardInterrupt:
+    # If there is a KeyboardInterrupt (when you press ctrl+c), exit the program and cleanup
+    pass

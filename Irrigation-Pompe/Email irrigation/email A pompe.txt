@@ -1,0 +1,47 @@
+import RPi.GPIO as GPIO
+import time
+import smtplib
+from email.mime.text import MIMEText
+
+# Configuration GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(26, GPIO.OUT)
+
+# Configuration email
+EMAIL = "sifaouisamar03@gmail.com"  # Votre email Gmail
+PASSWORD = "oemx bhaw lxqs rwxx"     # Mot de passe ou mot de passe d'application
+DESTINATAIRE = "sifaouisamar03@gmail.com"  # Email destinataire
+
+def envoyer_email():
+    try:
+        msg = MIMEText("La pompe a été activée pour arrosage")
+        msg['Subject'] = 'Alerte Pompe Active'
+        msg['From'] = EMAIL
+        msg['To'] = DESTINATAIRE
+        
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(EMAIL, PASSWORD)
+            server.send_message(msg)
+        
+        print("Email envoyé avec succès")
+    except Exception as e:
+        print(f"Erreur envoi email: {e}")
+
+try:
+    while True:
+        # Activation pompe
+        GPIO.output(26, GPIO.LOW)
+        print('Pompe ON - Arrosage en cours')
+        envoyer_email()  # Envoi email quand la pompe s'active
+        
+        time.sleep(60)  # Durée d'arrosage (5 secondes)
+        
+        # Désactivation pompe
+        GPIO.output(26, GPIO.HIGH)
+        print('Pompe OFF')
+        
+        time.sleep(20)  # Pause entre les arrosages (60 secondes)
+        
+finally:
+    GPIO.cleanup()

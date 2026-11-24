@@ -1,0 +1,88 @@
+import time
+import RPi.GPIO as GPIO
+import drivers  # Pour l' cran LCD
+import board
+import adafruit_dht
+
+# Initialisation du LCD
+display = drivers.Lcd()
+
+# Configuration du capteur d'eau
+capteur_pin = 25  # GPIO utilis 
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(capteur_pin, GPIO.IN)
+
+# Initialisation du capteur DHT22
+dhtDevice = adafruit_dht.DHT22(board.D17)
+
+# Initialisation des relais
+GPIO.setup(5, GPIO.OUT)  # Relay 1
+GPIO.setup(6, GPIO.OUT)  # Relay 2
+
+# D marrer relais en OFF (HIGH = inactif)
+GPIO.output(5, GPIO.HIGH)
+GPIO.output(6, GPIO.HIGH)
+
+def lire_dht22():
+    """Fonction pour lire les donn es du capteur DHT22 avec gestion des erreurs."""
+    max_retries = 5  # Nombre maximal de tentatives
+    retry_count = 0
+
+    while retry_count < max_retries:
+        try:
+            temperature_c = dhtDevice.temperature
+            humidity = dhtDevice.humidity
+            return temperature_c, humidity  # Retourner les valeurs si la lecture r ussit
+        except RuntimeError as error:
+            print("Erreur capteur DHT22:", error.args[0])
+            retry_count += 1
+            time.sleep(2.0)  # Attendre avant de r essayer
+        except Exception as error:
+            print("Erreur grave capteur DHT22:", error)
+            dhtDevice.exit()
+            raise error
+
+    # Si toutes les tentatives  chouent
+    print(" chec de la lecture du capteur DHT22 apr s", max_retries, "tentatives.")
+    return None, None
+
+try:
+    while True:
+        # Lire l' tat du capteur d'eau
+        etat_capteur = GPIO.input(capteur_pin)
+        if etat_capteur == GPIO.HIGH:
+            etat_eau = "Reservoir plein"
+            relais_actif = True
+        else:
+            etat_eau = "Reservoir vide"
+            relais_actif = False
+
+        # Lire donn es DHT22
+        temperature_c, humidity = lire_dht22()
+
+        if temperature_c is not None and humidity is not None:
+            # Afficher la temp rature et l'humidit  sur la premi re ligne
+            display.lcd_display_string(f"T:{temperature_c:.1f}C H:{humidity:.1f}%", 1)
+        else:
+            # Afficher un message d'erreur si la lecture  choue
+            display.lcd_display_string("Erreur DHT22", 1)
+
+        # Afficher l' tat du capteur d'eau sur la deuxi me ligne
+        display.lcd_display_string(etat_eau, 2)
+
+        # Activer les relais uniquement si le r servoir est plein
+        if relais_actif:
+            GPIO.output(5, GPIO.LOW)  # Activer Relay 1
+            GPIO.output(6, GPIO.LOW)  # Activer Relay 2
+            print("Relais activ s (r servoir plein)")
+        else:
+            GPIO.output(5, GPIO.HIGH)  # D sactiver Relay 1
+            GPIO.output(6, GPIO.HIGH)  # D sactiver Relay 2
+            print("Relais d sactiv s (r servoir vide)")
+
+        time.sleep(2)  # Attendre 2 secondes avant la prochaine lecture
+
+except KeyboardInterrupt:
+    print("Programme arr t .")
+    display.lcd_clear()  # Nettoyer l' cran LCD avant de quitter
+    GPIO.cleanup()

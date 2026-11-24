@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Connection Test</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Firebase Connection Test</h1>
+    <div id="status">Status: <span id="connectionStatus">Not connected</span></div>
+    
+    <button id="connectBtn">Connect to Firebase</button>
+    <button id="readDataBtn" disabled>Read Data</button>
+    <button id="testSensorBtn" disabled>Test Sensor Card</button>
+    <button id="clearLogBtn">Clear Log</button>
+    
+    <h2>Log:</h2>
+    <pre id="log"></pre>
+    
+    <h2>Data:</h2>
+    <pre id="data"></pre>
+    
+    <div id="sensorTest" style="display: none;">
+        <h2>Sensor Test:</h2>
+        <div id="sensorCard" style="border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin-top: 20px;">
+            <h3 id="sensorTitle">Temperature</h3>
+            <div id="sensorValue" style="font-size: 24px; margin: 10px 0;">--</div>
+            <div id="sensorDetails">Min: -- | Max: --</div>
+        </div>
+    </div>
+
+    <script>
+        // Log function
+        function log(message, isError = false) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = isError ? 'error' : '';
+            logElement.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmzmvUb8plakOAKUi_U40PcET7x0tDWmU",
+            authDomain: "fraisier-fa1be.firebaseapp.com",
+            databaseURL: "https://fraisier-fa1be-default-rtdb.firebaseio.com",
+            projectId: "fraisier-fa1be",
+            storageBucket: "fraisier-fa1be.firebasestorage.app",
+            messagingSenderId: "998885212968",
+            appId: "1:998885212968:web:9a1320a249d70b66ad061d",
+            measurementId: "G-XCXGSCC4LS"
+        };
+
+        let firebase;
+        let database;
+        let dataRef;
+        let unsubscribe;
+
+        // Connect to Firebase
+        document.getElementById('connectBtn').addEventListener('click', function() {
+            try {
+                log('Initializing Firebase...');
+                firebase = firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.getElementById('connectionStatus').className = 'success';
+                document.getElementById('readDataBtn').disabled = false;
+                document.getElementById('testSensorBtn').disabled = false;
+                
+                log('Firebase initialized successfully');
+            } catch (error) {
+                log(`Error initializing Firebase: ${error.message}`, true);
+                document.getElementById('connectionStatus').textContent = 'Error';
+                document.getElementById('connectionStatus').className = 'error';
+            }
+        });
+
+        // Read data from Firebase
+        document.getElementById('readDataBtn').addEventListener('click', function() {
+            if (!database) {
+                log('Firebase not initialized', true);
+                return;
+            }
+
+            log('Reading data from Firebase...');
+            dataRef = database.ref('/');
+            
+            dataRef.once('value')
+                .then(snapshot => {
+                    log('Data received');
+                    const data = snapshot.val();
+                    document.getElementById('data').textContent = JSON.stringify(data, null, 2);
+                    
+                    if (data) {
+                        log(`Data keys: ${Object.keys(data).join(', ')}`);
+                        
+                        // Check for expected keys
+                        const expectedKeys = ['temperature', 'humidity_air', 'humidity_soil', 'water_level', 'pump_active', 'timestamp'];
+                        const missingKeys = expectedKeys.filter(key => !(key in data));
+                        
+                        if (missingKeys.length > 0) {
+                            log(`Missing expected keys: ${missingKeys.join(', ')}`, true);
+                        } else {
+                            log('All expected keys found', false);
+                        }
+                    } else {
+                        log('No data found', true);
+                    }
+                })
+                .catch(error => {
+                    log(`Error reading data: ${error.message}`, true);
+                });
+        });
+
+        // Test sensor card
+        document.getElementById('testSensorBtn').addEventListener('click', function() {
+            if (!database) {
+                log('Firebase not initialized', true);
+                return;
+            }
+
+            document.getElementById('sensorTest').style.display = 'block';
+            log('Starting sensor test...');
+            
+            // Set up real-time listener for temperature
+            const sensorType = 'temperature';
+            dataRef = database.ref('/');
+            
+            if (unsubscribe) {
+                unsubscribe();
+            }
+            
+            unsubscribe = dataRef.on('value', snapshot => {
+                log(`Received update for ${sensorType}`);
+                const data = snapshot.val();
+                
+                if (data && sensorType in data) {
+                    const value = data[sensorType];
+                    log(`${sensorType} value: ${value}`);
+                    
+                    // Update sensor card
+                    document.getElementById('sensorTitle').textContent = 'Temperature';
+                    document.getElementById('sensorValue').textContent = `${value.toFixed(1)} °C`;
+                    document.getElementById('sensorDetails').textContent = `Min: 18 °C | Max: 28 °C`;
+                    
+                    // Check if value is outside thresholds
+                    const minThreshold = 18;
+                    const maxThreshold = 28;
+                    const isAlert = value < minThreshold || value > maxThreshold;
+                    
+                    if (isAlert) {
+                        document.getElementById('sensorCard').style.borderColor = 'red';
+                        document.getElementById('sensorValue').style.color = 'red';
+                    } else {
+                        document.getElementById('sensorCard').style.borderColor = '#ddd';
+                        document.getElementById('sensorValue').style.color = 'black';
+                    }
+                } else {
+                    log(`${sensorType} not found in data`, true);
+                    document.getElementById('sensorValue').textContent = 'N/A';
+                }
+            }, error => {
+                log(`Error in real-time listener: ${error.message}`, true);
+            });
+        });
+
+        // Clear log
+        document.getElementById('clearLogBtn').addEventListener('click', function() {
+            document.getElementById('log').innerHTML = '';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simple - Données Firebase</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            width: 100%;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button.danger {
+            background-color: #dc3545;
+        }
+        .button.danger:hover {
+            background-color: #c82333;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .instructions {
+            background-color: #e7f3ff;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Simple - Détection Hors Ligne</h1>
+
+        <div class="instructions">
+            <h3>📋 Instructions :</h3>
+            <ol>
+                <li><strong>Ouvrez votre dashboard</strong> dans un autre onglet</li>
+                <li><strong>Cliquez sur "Envoyer Données"</strong> pour voir les milieux passer "En ligne"</li>
+                <li><strong>Attendez 70 secondes</strong> sans cliquer pour voir les milieux passer "Hors ligne"</li>
+                <li><strong>Les données restent affichées</strong> même quand c'est "Hors ligne"</li>
+            </ol>
+        </div>
+
+        <div id="status" class="status error">
+            ⏳ Initialisation de Firebase...
+        </div>
+
+        <button id="sendBtn" class="button" onclick="sendData()" disabled>
+            📡 Envoyer Données aux Milieux
+        </button>
+
+        <button id="clearBtn" class="button danger" onclick="clearData()" disabled>
+            🗑️ Supprimer Toutes les Données
+        </button>
+
+        <div id="info" style="margin-top: 20px; font-size: 14px; color: #666;">
+            <p><strong>Timeout configuré :</strong> 60 secondes</p>
+            <p><strong>Vérification :</strong> Toutes les 10 secondes</p>
+            <p><strong>Chemin Firebase :</strong> /chambre/ch1/sensors et /chambre/ch2/sensors</p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, push, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // Configuration Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOzZQOqOKOOOOOOOOOOOOOOOOOOOOOOOO",
+            authDomain: "fraisier-fa1be.firebaseapp.com",
+            databaseURL: "https://fraisier-fa1be-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "fraisier-fa1be",
+            storageBucket: "fraisier-fa1be.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcdefghijklmnop"
+        };
+
+        // Initialiser Firebase
+        let app, database;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            database = getDatabase(app);
+            updateStatus('success', '✅ Firebase initialisé avec succès');
+            enableButtons();
+        } catch (error) {
+            updateStatus('error', `❌ Erreur Firebase: ${error.message}`);
+        }
+
+        function updateStatus(type, message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+
+        function enableButtons() {
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('clearBtn').disabled = false;
+        }
+
+        // Fonction pour envoyer des données
+        window.sendData = async function() {
+            const timestamp = new Date().toISOString();
+            const testData = {
+                timestamp,
+                temperature: 22.5 + Math.random() * 3,
+                humidity_air: 65 + Math.random() * 10,
+                humidity_soil: 70 + Math.random() * 10,
+                water_level: 80 + Math.random() * 15,
+                pump_active: Math.random() > 0.5,
+                fan_active: Math.random() > 0.7,
+                heater_active: Math.random() > 0.8,
+                light: {
+                    r: Math.floor(Math.random() * 256),
+                    g: Math.floor(Math.random() * 256),
+                    b: Math.floor(Math.random() * 256)
+                }
+            };
+
+            try {
+                await push(ref(database, '/chambre/ch1/sensors'), testData);
+                await push(ref(database, '/chambre/ch2/sensors'), testData);
+                updateStatus('success', `✅ Données envoyées à ${new Date().toLocaleTimeString()} - Milieux devraient être "En ligne"`);
+            } catch (error) {
+                updateStatus('error', `❌ Erreur: ${error.message}`);
+            }
+        };
+
+        // Fonction pour supprimer les données
+        window.clearData = async function() {
+            try {
+                await remove(ref(database, '/chambre'));
+                updateStatus('error', '🗑️ Données supprimées - Milieux "Hors ligne"');
+            } catch (error) {
+                updateStatus('error', `❌ Erreur: ${error.message}`);
+            }
+        };
+    </script>
+</body>
+</html>

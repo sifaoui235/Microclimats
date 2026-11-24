@@ -1,0 +1,33 @@
+import time
+import RPi.GPIO as GPIO
+import drivers  # Pour l'écran LCD
+
+# Initialisation du LCD
+display = drivers.Lcd()
+
+# Configuration du capteur d'eau
+capteur_pin = 5  # GPIO utilisé
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(capteur_pin, GPIO.IN)
+
+try:
+    while True:
+        # Lire l'état du capteur
+        if GPIO.input(capteur_pin) == GPIO.HIGH:
+            etat = "Présence d'eau"
+        else:
+            etat = "Pas d'eau"
+
+        # Afficher les valeurs sur le LCD
+        display.lcd_display_string("Capteur d'eau", 1)
+        display.lcd_display_string(etat, 2)
+
+        # Afficher dans le terminal
+        print(etat)
+
+        time.sleep(2)  # Pause pour éviter une mise à jour trop rapide
+
+except KeyboardInterrupt:
+    print("Programme arrêté.")
+    display.lcd_clear()  # Nettoyer l'écran LCD avant de quitter
+    GPIO.cleanup()

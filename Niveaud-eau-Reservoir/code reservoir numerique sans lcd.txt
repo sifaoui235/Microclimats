@@ -1,0 +1,33 @@
+import spidev
+import time
+
+# Configuration SPI
+spi = spidev.SpiDev()
+spi.open(0, 0)          # (bus=0, device=0) pour CE0
+spi.max_speed_hz = 1000000  # Débit en Hz (1 MHz)
+
+def lire_canal(channel):
+    # Envoi de la commande SPI pour le MCP3008
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
+
+try:
+    print("Lecture du capteur de niveau d'eau (Ctrl+C pour arrêter)")
+    print("------------------------------------------------------")
+    
+    # Calibration (à ajuster)
+    VALEUR_MIN = 100   # Valeur quand vide
+    VALEUR_MAX = 950   # Valeur quand plein
+    
+    while True:
+        valeur_brute = lire_canal(0)  # Lecture du CH0
+        pourcentage = (valeur_brute - VALEUR_MIN) / (VALEUR_MAX - VALEUR_MIN) * 100
+        pourcentage = max(0, min(100, round(pourcentage, 1)))
+        
+        print(f"Niveau: {pourcentage}% | Valeur brute: {valeur_brute}")
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    print("\nArrêt du programme")
+    spi.close()

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Détection Hors Ligne</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test de Détection Hors Ligne</h1>
+        <p>Ce script teste la fonctionnalité de détection "Hors ligne" en envoyant des données à Firebase puis en arrêtant l'envoi.</p>
+        
+        <div id="status" class="status warning">
+            ⏳ Initialisation de Firebase...
+        </div>
+        
+        <div>
+            <button id="sendRecentBtn" class="button" onclick="sendRecentData()">📡 Envoyer Données Récentes</button>
+            <button id="sendOldBtn" class="button" onclick="sendOldData()">⏰ Envoyer Données Obsolètes</button>
+            <button id="startContinuousBtn" class="button" onclick="startContinuous()">🔄 Démarrer Envoi Continu</button>
+            <button id="stopContinuousBtn" class="button" onclick="stopContinuous()" disabled>⏹️ Arrêter Envoi</button>
+            <button id="clearDataBtn" class="button" onclick="clearData()">🗑️ Supprimer Données</button>
+        </div>
+        
+        <div>
+            <h3>📋 Journal des Actions</h3>
+            <div id="log" class="log"></div>
+        </div>
+        
+        <div>
+            <h3>ℹ️ Instructions</h3>
+            <ol>
+                <li><strong>Envoyer Données Récentes</strong>: Envoie des données avec timestamp actuel (milieux = "En ligne")</li>
+                <li><strong>Envoyer Données Obsolètes</strong>: Envoie des données avec timestamp ancien (milieux = "Hors ligne")</li>
+                <li><strong>Démarrer Envoi Continu</strong>: Envoie des données toutes les 5 secondes</li>
+                <li><strong>Arrêter Envoi</strong>: Arrête l'envoi continu (après 60s, milieux = "Hors ligne")</li>
+                <li><strong>Supprimer Données</strong>: Supprime toutes les données Firebase</li>
+            </ol>
+            <p><strong>Note</strong>: Ouvrez votre dashboard dans un autre onglet pour voir les changements de statut en temps réel.</p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, push, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // Configuration Firebase (même que dans votre app)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOzZQOqOKOOOOOOOOOOOOOOOOOOOOOOOO",
+            authDomain: "fraisier-fa1be.firebaseapp.com",
+            databaseURL: "https://fraisier-fa1be-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "fraisier-fa1be",
+            storageBucket: "fraisier-fa1be.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcdefghijklmnop"
+        };
+
+        // Initialiser Firebase
+        let app, database;
+        let continuousInterval = null;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            database = getDatabase(app);
+            updateStatus('success', '✅ Firebase initialisé avec succès');
+            enableButtons();
+        } catch (error) {
+            updateStatus('error', `❌ Erreur Firebase: ${error.message}`);
+        }
+
+        // Fonctions utilitaires
+        function updateStatus(type, message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+
+        function addLog(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function enableButtons() {
+            document.getElementById('sendRecentBtn').disabled = false;
+            document.getElementById('sendOldBtn').disabled = false;
+            document.getElementById('startContinuousBtn').disabled = false;
+            document.getElementById('clearDataBtn').disabled = false;
+        }
+
+        // Fonctions principales
+        window.sendRecentData = async function() {
+            const timestamp = new Date().toISOString();
+            const testData = {
+                timestamp,
+                temperature: 22.5 + Math.random() * 3,
+                humidity_air: 65 + Math.random() * 10,
+                humidity_soil: 70 + Math.random() * 10,
+                water_level: 80 + Math.random() * 15,
+                pump_active: Math.random() > 0.5,
+                fan_active: Math.random() > 0.7,
+                heater_active: Math.random() > 0.8,
+                light: {
+                    r: Math.floor(Math.random() * 256),
+                    g: Math.floor(Math.random() * 256),
+                    b: Math.floor(Math.random() * 256)
+                }
+            };
+
+            try {
+                await push(ref(database, '/milieu/ch1/sensors'), testData);
+                await push(ref(database, '/milieu/ch2/sensors'), testData);
+                addLog(`📡 Données récentes envoyées (${timestamp})`);
+                updateStatus('success', '✅ Données récentes envoyées - Milieux devraient être "En ligne"');
+            } catch (error) {
+                addLog(`❌ Erreur envoi données récentes: ${error.message}`);
+                updateStatus('error', `❌ Erreur: ${error.message}`);
+            }
+        };
+
+        window.sendOldData = async function() {
+            // Timestamp d'il y a 2 minutes
+            const oldTimestamp = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+            const testData = {
+                timestamp: oldTimestamp,
+                temperature: 20.0,
+                humidity_air: 50.0,
+                humidity_soil: 60.0,
+                water_level: 75.0,
+                pump_active: false,
+                fan_active: false,
+                heater_active: false,
+                light: { r: 0, g: 0, b: 0 }
+            };
+
+            try {
+                await push(ref(database, '/milieu/ch1/sensors'), testData);
+                await push(ref(database, '/milieu/ch2/sensors'), testData);
+                addLog(`⏰ Données obsolètes envoyées (${oldTimestamp})`);
+                updateStatus('warning', '⚠️ Données obsolètes envoyées - Milieux devraient être "Hors ligne"');
+            } catch (error) {
+                addLog(`❌ Erreur envoi données obsolètes: ${error.message}`);
+                updateStatus('error', `❌ Erreur: ${error.message}`);
+            }
+        };
+
+        window.startContinuous = function() {
+            if (continuousInterval) return;
+            
+            continuousInterval = setInterval(window.sendRecentData, 5000);
+            window.sendRecentData(); // Envoyer immédiatement
+            
+            document.getElementById('startContinuousBtn').disabled = true;
+            document.getElementById('stopContinuousBtn').disabled = false;
+            
+            addLog('🔄 Envoi continu démarré (toutes les 5 secondes)');
+            updateStatus('success', '🔄 Envoi continu actif - Milieux restent "En ligne"');
+        };
+
+        window.stopContinuous = function() {
+            if (continuousInterval) {
+                clearInterval(continuousInterval);
+                continuousInterval = null;
+            }
+            
+            document.getElementById('startContinuousBtn').disabled = false;
+            document.getElementById('stopContinuousBtn').disabled = true;
+            
+            addLog('⏹️ Envoi continu arrêté');
+            updateStatus('warning', '⏹️ Envoi arrêté - Milieux passeront "Hors ligne" dans 60 secondes');
+        };
+
+        window.clearData = async function() {
+            try {
+                await remove(ref(database, '/milieu'));
+                addLog('🗑️ Toutes les données supprimées');
+                updateStatus('error', '🗑️ Données supprimées - Milieux "Hors ligne"');
+            } catch (error) {
+                addLog(`❌ Erreur suppression: ${error.message}`);
+                updateStatus('error', `❌ Erreur: ${error.message}`);
+            }
+        };
+    </script>
+</body>
+</html>

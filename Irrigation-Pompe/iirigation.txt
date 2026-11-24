@@ -1,0 +1,82 @@
+import sys
+import time
+import spidev
+import RPi.GPIO as GPIO
+
+sys.path.append("/home/sifaoui/lcd")
+from drivers import Lcd
+
+# Configuration GPIO
+POMPE_GPIO = 17
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(POMPE_GPIO, GPIO.OUT, initial=GPIO.LOW)
+
+# Calibration (À MESURER !)
+DRY_SOL = 950   # RAW en air sec (0% d'humidité)
+WET_SOL = 250   # RAW dans l'eau (100% d'humidité)
+EAU_PAR_POURCENT = 4.2  # mL par % (mesurer !)
+EAU_0_A_80 = 80 * EAU_PAR_POURCENT
+
+class SoilMoistureSensor:
+    def __init__(self, channel=1):
+        self.spi = spidev.SpiDev()
+        self.spi.open(0, 0)
+        self.spi.max_speed_hz = 1350000
+        self.channel = channel
+
+    def read_raw(self):
+        adc_data = self.spi.xfer2([1, (8 + self.channel) << 4, 0])
+        return ((adc_data[1] & 3) << 8) + adc_data[2]
+
+    def read_percentage(self):
+        raw = self.read_raw()
+        return max(0, min(100, (DRY_SOL - raw) / (DRY_SOL - WET_SOL) * 100))
+
+    def close(self):
+        self.spi.close()
+
+def initialiser_lcd():
+    try:
+        lcd = Lcd()
+        lcd.lcd_clear()
+        return lcd
+    except Exception as e:
+        print("Erreur LCD:", e)
+        exit(1)
+
+def main():
+    lcd = initialiser_lcd()
+    sensor = SoilMoistureSensor()
+    pompe_active = False
+
+    try:
+        # Affichage FIXE 0%→80%
+        lcd.lcd_display_string(f"0→80%: {EAU_0_A_80}mL", 1)
+
+        while True:
+            moisture = sensor.read_percentage()
+
+            # Contrôle pompe
+            if moisture < 60 and not pompe_active:
+                GPIO.output(POMPE_GPIO, GPIO.HIGH)
+                pompe_active = True
+            elif moisture >= 80 and pompe_active:
+                GPIO.output(POMPE_GPIO, GPIO.LOW)
+                pompe_active = False
+
+            # Affichage dynamique de l'humidité en temps réel
+            lcd.lcd_display_string(" " * 16, 2)  # Efface ligne
+            lcd.lcd_display_string(f"Actuel: {moisture:.1f}%", 2)
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\nArrêt...")
+    finally:
+        GPIO.output(POMPE_GPIO, GPIO.LOW)
+        lcd.lcd_clear()
+        GPIO.cleanup()
+        sensor.close()
+
+if __name__ == "__main__":
+    main()

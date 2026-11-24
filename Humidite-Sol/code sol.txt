@@ -1,0 +1,54 @@
+import sys
+import time
+import spidev
+
+# Ajout du chemin vers la bibliothèque LCD
+sys.path.append("/home/sifaoui/lcd")  # Chemin vers votre bibliothèque LCD
+import drivers
+
+# Initialisation du LCD
+display = drivers.Lcd()
+
+class SoilMoistureSensor:
+    def __init__(self, bus=0, device=0, channel=1):
+        self.spi = spidev.SpiDev()
+        self.spi.open(bus, device)  # bus=0 (SPI0), device=0 (CE0)
+        self.spi.max_speed_hz = 1_350_000  # Vitesse max MCP3008
+        self.channel = channel
+
+    def read_raw(self):
+        # Format de la commande SPI pour MCP3008
+        cmd = 0b11000000 | (self.channel << 3)
+        adc_data = self.spi.xfer2([cmd, 0x00, 0x00])
+        
+        # Extraction des 10 bits (0-1023)
+        raw_value = ((adc_data[0] & 0x01) << 9) | (adc_data[1] << 1) | (adc_data[2] >> 7)
+        return raw_value
+
+    def read_percentage(self, dry_val=200, wet_val=900):
+        raw = self.read_raw()
+        # Calibration (ajuster dry_val/wet_val selon vos tests)
+        moisture = max(0, min(100, (raw - dry_val) / (wet_val - dry_val) * 100))
+        return moisture
+
+    def close(self):
+        self.spi.close()
+
+# Utilisation
+if __name__ == "__main__":
+    sensor = SoilMoistureSensor(channel=1)  # CH1 du MCP3008
+    try:
+        while True:
+            moisture = sensor.read_percentage()
+            print(f"Humidité du sol: {moisture:.1f}%")
+            
+            # Affichage sur LCD
+            display.lcd_display_string(f"Humidite: {moisture:.1f}%", 1)  # Ligne 1
+            display.lcd_display_string(time.strftime("%H:%M:%S"), 2)     # Ligne 2 (heure)
+            
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        print("\nArrêt du capteur")
+        display.lcd_clear()  # Nettoyage de l'écran
+        sensor.close()
